@@ -218,7 +218,7 @@ def massWeightNames(matches=None, proc=""):
     # If name is "" it won't be stored
     return [x if not matches or any(y in x for y in matches) else "" for x in names]
 
-def add_pdf_hists(results, df, dataset, axes, cols, pdfs, base_name="nominal"):
+def add_pdf_hists(results, df, dataset, axes, cols, pdfs, base_name="nominal", addHelicityHistos = False):
     for pdf in pdfs:
         try:
             pdfInfo = theory_tools.pdf_info_map(dataset, pdf)
@@ -229,7 +229,7 @@ def add_pdf_hists(results, df, dataset, axes, cols, pdfs, base_name="nominal"):
         pdfName = pdfInfo["name"]
         tensorName = f"{pdfName}Weights_tensor"
         tensorASName = f"{pdfName}ASWeights_tensor"
-
+        pdfSize = pdfInfo["entries"]
         name = Datagroups.histName(base_name, syst=pdfName)
         names = getattr(theory_tools, f"pdfNames{'Sym' if pdfInfo['combine'] == 'symHessian' else 'Asym'}Hessian")(pdfInfo["entries"], pdfName)
         pdf_ax = hist.axis.StrCategory(names, name="pdfVar")
@@ -237,7 +237,6 @@ def add_pdf_hists(results, df, dataset, axes, cols, pdfs, base_name="nominal"):
             logger.warning(f"PDF {pdf} was not found for sample {dataset}. Skipping uncertainty hist!")
             continue
         pdfHist = df.HistoBoost(name, axes, [*cols, tensorName], tensor_axes=[pdf_ax])
-
         if pdfInfo["alphasRange"] == "001":
             name = Datagroups.histName(base_name, syst=f"{pdfName}alphaS001")
             as_ax = hist.axis.StrCategory(["as0117", "as0119"], name="alphasVar")
@@ -245,6 +244,14 @@ def add_pdf_hists(results, df, dataset, axes, cols, pdfs, base_name="nominal"):
             name = Datagroups.histName(base_name, syst=f"{pdfName}alphaS002")
             as_ax = hist.axis.StrCategory(["as0116", "as0120"], name="alphasVar")
         alphaSHist = df.HistoBoost(name, axes, [*cols, tensorASName], tensor_axes=[as_ax])
+        if addHelicityHistos:
+            df = df.Define(f"{tensorName}_moments_tensor", f"wrem::makePDFMomentScaleTensor<{pdfSize}>(csSineCosThetaPhi, {tensorName}, nominal_weight)")
+            pdfHist_helicity = df.HistoBoost(f"{name}_helicity", axes, [*cols, f"{tensorName}_moments_tensor"], tensor_axes=[theory_tools.axis_helicity, *pdf_ax])
+            results.append(pdfHist_helicity)
+            df = df.Define(f"{tensorASName}_moments_tensor", f"wrem::makePDFMomentScaleTensor<2>(csSineCosThetaPhi, {tensorASName}, nominal_weight)")
+            pdfASHist_helicity = df.HistoBoost(f"{name}_helicity", axes, [*cols, f"{tensorASName}_moments_tensor"], tensor_axes=[theory_tools.axis_helicity, *as_ax])
+            results.append(pdfASHist_helicity)
+
         results.extend([pdfHist, alphaSHist])
     return df
 
