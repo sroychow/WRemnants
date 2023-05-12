@@ -5,7 +5,7 @@ parser,initargs = common.common_parser(True)
 
 import narf
 import wremnants
-from wremnants import theory_tools,syst_tools,theory_corrections, muon_calibration, muon_selections, muon_validation, unfolding_tools
+from wremnants import theory_tools,syst_tools,theory_corrections, muon_calibration, muon_selections, muon_validation, unfolding_tools, syst_tools_helicity
 import hist
 import lz4.frame
 import math
@@ -14,6 +14,7 @@ from utilities import boostHistHelpers as hh
 import pathlib
 import os
 import numpy as np
+
 
 data_dir = f"{pathlib.Path(__file__).parent}/../../wremnants/data/"
 parser.add_argument("--noScaleFactors", action="store_true", help="Don't use scale factors for efficiency (legacy option for tests)")
@@ -25,6 +26,8 @@ parser.add_argument("--vqtTestReal", action="store_true", help="Test of isolatio
 parser.add_argument("--vqtTestIncludeTrigger", action="store_true", help="Test of isolation SFs dependence on V q_T projection. Including trigger")
 parser.add_argument("--noGenMatchMC", action='store_true', help="Don't use gen match filter for prompt muons with MC samples (note: QCD MC never has it anyway)")
 parser.add_argument("--dphiMuonMetCut", type=float, help="Threshold to cut |deltaPhi| > thr*np.pi between muon and met", default=0.25)
+parser.add_argument("--addHelicityHistos", action='store_true', help="Add V qT,Y axes and helicity axes for W samples")
+
 args = parser.parse_args()
 
 if args.vqtTestIntegrated:
@@ -71,6 +74,17 @@ axis_hasjet_fakes = hist.axis.Boolean(name = "hasJets") # only need case with 0 
 mTStudyForFakes_axes = [axis_eta, axis_pt, axis_charge, axis_mt_fakes, axis_passIso, axis_hasjet_fakes, axis_dphi_fakes]
 
 axis_met = hist.axis.Regular(200, 0., 200., name = "met", underflow=False, overflow=True)
+
+axis_ptVgen = hist.axis.Variable(
+    list(range(0,60,10)),
+    name = "ptVgen", underflow=False
+)
+#Taken from w-z gen histomaker     
+axis_absYVgen = hist.axis.Variable(
+    #[0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4., 5., np.inf], 
+    [0, 0.5, 1.5, 2.5, 5.],
+    name = "absYVgen", underflow=False
+)
 
 # define helpers
 muon_prefiring_helper, muon_prefiring_helper_stat, muon_prefiring_helper_syst = wremnants.make_muon_prefiring_helpers(era = era)
@@ -127,6 +141,21 @@ if not args.noRecoil:
     from wremnants import recoil_tools
     recoilHelper = recoil_tools.Recoil("highPU", args, flavor="mu")
 
+
+#graph building for Wsample with helicity weights
+def whistosbyHelicity(df, results, dataset, era):
+    nominal_cols = ["goodMuons_eta0", "goodMuons_pt0", "goodMuons_charge0", "passIso", "passMT", "absYVgen", "ptVgen"]
+    nominal_axes = [axis_eta, axis_pt, axis_charge, axis_passIso, axis_passMT, axis_absYVgen, axis_ptVgen]
+    weightsByHelicity_helper = wremnants.makehelicityWeightHelper()
+    df = df.Define("helWeight_tensor", weightsByHelicity_helper, ["massVgen", "yVgen", "ptVgen", "chargeVgen", "csSineCosThetaPhi", "nominal_weight"])
+    nominalByHelicity = df.HistoBoost("nominal", nominal_axes, [*nominal_cols,"helWeight_tensor"], tensor_axes=weightsByHelicity_helper.tensor_axes)
+    results.append(nominalByHelicity)
+    ##prefire histos
+    df = syst_tools_helicity.add_L1Prefire_unc_hists(results, df, muon_prefiring_helper_stat, muon_prefiring_helper_syst, nominal_axes, nominal_cols)
+    df = syst_tools_helicity.add_muon_efficiency_unc_hists(results, df, muon_efficiency_helper_stat, muon_efficiency_helper_syst, nominal_axes, nominal_cols)
+    #return results
+
+
 def build_graph(df, dataset):
     logger.info(f"build graph for dataset: {dataset.name}")
     results = []
@@ -135,6 +164,11 @@ def build_graph(df, dataset):
     isTop = dataset.group == "Top"
     isQCDMC = dataset.group == "QCD"
     require_prompt = "tau" not in dataset.name # for muon GEN-matching
+    
+    #don't go further if the helicity argument is given
+    if args.addHelicityHistos and not isW:
+        print('Skipping {dataset.name} since helicity option is passed')
+        return results, 0
 
     unfold = args.unfolding and dataset.name in ["WplusmunuPostVFP", "WminusmunuPostVFP"]
 
@@ -298,18 +332,21 @@ def build_graph(df, dataset):
             syst_tools.add_QCDbkg_jetPt_hist(results, df, axes, cols, jet_pt=30)
 
     else:  
+        if isW and args.addHelicityHistos:
+            whistosbyHelicity(df, results, dataset, era=era)
+            return results, weightsum
         results.append(df.HistoBoost("nominal_weight", [hist.axis.Regular(200, -4, 4)], ["nominal_weight"]))
-
+        
         nominal = df.HistoBoost("nominal", axes, [*cols, "nominal_weight"])
         results.append(nominal)
-
+        
         if not args.noRecoil:
             df = recoilHelper.add_recoil_unc_W(df, results, dataset, cols, axes, "nominal")
-
+            
         if apply_theory_corr:
             results.extend(theory_tools.make_theory_corr_hists(df, "nominal", axes, cols, 
-                corr_helpers[dataset.name], args.theoryCorr, modify_central_weight=not args.theoryCorrAltOnly)
-            )
+                                                               corr_helpers[dataset.name], args.theoryCorr, modify_central_weight=not args.theoryCorrAltOnly)
+                       )
         if args.muonScaleVariation == 'smearingWeights' and (isW or isZ): 
             nominal_cols_gen, nominal_cols_gen_smeared = muon_calibration.make_alt_reco_and_gen_hists(df, results, axes, cols, reco_sel_GF)
             if args.validationHists: 
@@ -490,8 +527,8 @@ def build_graph(df, dataset):
     return results, weightsum
 
 resultdict = narf.build_and_run(datasets, build_graph)
-if not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeights':
-    muon_calibration.transport_smearing_weights_to_reco(resultdict)
-    muon_calibration.muon_scale_variation_from_manual_shift(resultdict)
+#if not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeights':
+#    muon_calibration.transport_smearing_weights_to_reco(resultdict)
+#    muon_calibration.muon_scale_variation_from_manual_shift(resultdict)
 
 output_tools.write_analysis_output(resultdict, f"{os.path.basename(__file__).replace('py', 'hdf5')}", args, update_name=not args.forceDefaultName)
