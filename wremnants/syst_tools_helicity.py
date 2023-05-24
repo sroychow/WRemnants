@@ -204,8 +204,10 @@ def define_mass_weights(df, proc):
 
 def add_massweights_hist(results, df, axes, cols, base_name="nominal", proc=""):
     name = Datagroups.histName(base_name, syst="massWeight")
-    massWeight = df.HistoBoost(name, axes, [*cols, "massWeight_tensor_wnom"], 
-                    tensor_axes=[hist.axis.StrCategory(massWeightNames(proc=proc), name="massShift")])
+    mass_axis = hist.axis.StrCategory(massWeightNames(proc=proc), name="massShift")
+    massweightHelicity, massWeight_axes = wremnants.make_massweight_helper_helicity(mass_axis)
+    df=df.Define("massWeight_tensor_wnom_helicity", massweightHelicity, ['massWeight_tensor_wnom', 'helWeight_tensor'])
+    massWeight = df.HistoBoost(name, axes, [*cols, "massWeight_tensor_wnom_helicity"], tensor_axes=massWeight_axes)
     results.append(massWeight)
 
 def massWeightNames(matches=None, proc=""):
@@ -230,14 +232,16 @@ def add_pdf_hists(results, df, dataset, axes, cols, pdfs, base_name="nominal"):
         pdfName = pdfInfo["name"]
         tensorName = f"{pdfName}Weights_tensor"
         tensorASName = f"{pdfName}ASWeights_tensor"
-
+        npdf=pdfInfo["entries"]
         name = Datagroups.histName(base_name, syst=pdfName)
         names = getattr(theory_tools, f"pdfNames{'Sym' if pdfInfo['combine'] == 'symHessian' else 'Asym'}Hessian")(pdfInfo["entries"], pdfName)
         pdf_ax = hist.axis.StrCategory(names, name="pdfVar")
         if tensorName not in df.GetColumnNames():
             logger.warning(f"PDF {pdf} was not found for sample {dataset}. Skipping uncertainty hist!")
             continue
-        pdfHist = df.HistoBoost(name, axes, [*cols, tensorName], tensor_axes=[pdf_ax])
+        pdfHeltensor, pdfHeltensor_axes =  wremnants.make_pdfweight_helper_helicity(npdf, pdf_ax)
+        df = df.Define(f'{tensorName}_helicity', pdfHeltensor, [tensorName, "helWeight_tensor"])
+        pdfHist = df.HistoBoost(name, axes, [*cols, f'{tensorName}_helicity'], tensor_axes=pdfHeltensor_axes)
 
         if pdfInfo["alphasRange"] == "001":
             name = Datagroups.histName(base_name, syst=f"{pdfName}alphaS001")
@@ -245,13 +249,18 @@ def add_pdf_hists(results, df, dataset, axes, cols, pdfs, base_name="nominal"):
         else:
             name = Datagroups.histName(base_name, syst=f"{pdfName}alphaS002")
             as_ax = hist.axis.StrCategory(["as0116", "as0120"], name="alphasVar")
-        alphaSHist = df.HistoBoost(name, axes, [*cols, tensorASName], tensor_axes=[as_ax])
+
+        alphaSHeltensor, alphaSHeltensor_axes =  wremnants.make_pdfweight_helper_helicity(2, as_ax)
+        df = df.Define(f'{tensorASName}_helicity', alphaSHeltensor, [tensorASName, "helWeight_tensor"])
+        alphaSHist = df.HistoBoost(name, axes, [*cols, f'{tensorASName}_helicity'], tensor_axes=alphaSHeltensor_axes)
         results.extend([pdfHist, alphaSHist])
     return df
 
 def add_qcdScale_hist(results, df, axes, cols, base_name="nominal"):
     name = Datagroups.histName(base_name, syst="qcdScale")
-    scaleHist = df.HistoBoost(name, axes, [*cols, "scaleWeights_tensor_wnom"], tensor_axes=theory_tools.scale_tensor_axes)
+    qcdbyHelicity, qcdbyHelicity_axes = wremnants.make_qcdscale_helper_helicity(theory_tools.scale_tensor_axes)
+    df = df.Define('scaleWeights_tensor_wnom_helicity', qcdbyHelicity, ['scaleWeights_tensor_wnom', 'helWeight_tensor'])
+    scaleHist = df.HistoBoost(name, axes, [*cols, "scaleWeights_tensor_wnom_helicity"], tensor_axes=qcdbyHelicity_axes)
     results.append(scaleHist)
 
 def add_qcdScaleByHelicityUnc_hist(results, df, helper, axes, cols, base_name="nominal"):
@@ -324,13 +333,15 @@ def add_L1Prefire_unc_hists(results, df, helper_stat, helper_syst, axes, cols, b
 
 def add_muonscale_hist(results, df, netabins, mag, isW, axes, cols, base_name="nominal", muon_eta="goodMuons_eta0"):
     nweights = 21 if isW else 23
-
     df = df.Define(f"muonScaleDummy{netabins}Bins{muon_eta}", f"wrem::dummyScaleFromMassWeights<{netabins}, {nweights}>(nominal_weight, massWeight_tensor, {muon_eta}, {mag}, {str(isW).lower()})")
 
     scale_etabins_axis = hist.axis.Regular(netabins, -2.4, 2.4, name="scaleEtaSlice", underflow=False, overflow=False)
     name = Datagroups.histName(base_name, syst=f"muonScaleSyst")
+    haxes = [common.down_up_axis, scale_etabins_axis]
+    dummyscale_helicity_helper, dummyscale_helicity_axes = wremnants.make_dummymuonscale_helper_helicity(2, netabins, haxes)
 
-    dummyMuonScaleSyst = df.HistoBoost(name, axes, [*cols, f"muonScaleDummy{netabins}Bins{muon_eta}"], tensor_axes=[common.down_up_axis, scale_etabins_axis])
+    df = df.Define(f"muonScaleDummy{netabins}Bins{muon_eta}_helicity", dummyscale_helicity_helper, [f"muonScaleDummy{netabins}Bins{muon_eta}", "helWeight_tensor"])
+    dummyMuonScaleSyst = df.HistoBoost(name, axes, [*cols, f"muonScaleDummy{netabins}Bins{muon_eta}_helicity"], tensor_axes=dummyscale_helicity_axes)
     results.append(dummyMuonScaleSyst)
 
     return df
@@ -342,8 +353,11 @@ def add_muonscale_smeared_hist(results, df, netabins, mag, isW, axes, cols, base
 
     scale_etabins_axis = hist.axis.Regular(netabins, -2.4, 2.4, name="scaleEtaSlice", underflow=False, overflow=False)
     name = Datagroups.histName(base_name, syst=f"muonScaleSyst_gen_smear")
+    #just for getting the tensor axes##think about doing it in a better way
+    haxes = [common.down_up_axis, scale_etabins_axis]
+    dummyscale_helicity_helper, dummyscale_helicity_axes = wremnants.make_dummymuonscale_helper_helicity(2, netabins, haxes)
 
-    dummyMuonScaleSyst_gen_smear = df.HistoBoost(name, axes, [*cols, f"muonScaleDummy{netabins}Bins{muon_eta}"], tensor_axes=[common.down_up_axis, scale_etabins_axis])
+    dummyMuonScaleSyst_gen_smear = df.HistoBoost(name, axes, [*cols, f"muonScaleDummy{netabins}Bins{muon_eta}_helicity"], tensor_axes=dummyscale_helicity_axes)
     results.append(dummyMuonScaleSyst_gen_smear)
 
     return df
@@ -378,8 +392,8 @@ def add_theory_hists(results, df, args, dataset_name, corr_helpers, qcdScaleByHe
         name = "ptVgen", underflow=False
     )
 
-    scale_axes = [*axes, axis_ptVgen, axis_chargeVgen]
-    scale_cols = [*cols, "ptVgen", "chargeVgen"]
+    scale_axes = [*axes, axis_chargeVgen]
+    scale_cols = [*cols, "chargeVgen"]
 
     df = theory_tools.define_scale_tensor(df)
     df = define_mass_weights(df, dataset_name)
@@ -387,19 +401,19 @@ def add_theory_hists(results, df, args, dataset_name, corr_helpers, qcdScaleByHe
     add_pdf_hists(results, df, dataset_name, axes, cols, args.pdfs, base_name=base_name)
     add_qcdScale_hist(results, df, scale_axes, scale_cols, base_name=base_name)
 
-    if args.theoryCorr and dataset_name in corr_helpers:
-        results.extend(theory_tools.make_theory_corr_hists(df, base_name, axes, cols, 
-            corr_helpers[dataset_name], args.theoryCorr, modify_central_weight=not args.theoryCorrAltOnly)
-        )
-
+    #if args.theoryCorr and dataset_name in corr_helpers:
+    #    results.extend(theory_tools.make_theory_corr_hists(df, base_name, axes, cols, 
+    #        corr_helpers[dataset_name], args.theoryCorr, modify_central_weight=not args.theoryCorrAltOnly)
+    #    )
+    #in principle this should not be true
     isZ = dataset_name in common.zprocs
 
     if for_wmass or isZ:
         # there is no W backgrounds for the Wlike, make QCD scale histograms only for Z
         # should probably remove the charge here, because the Z only has a single charge and the pt distribution does not depend on which charged lepton is selected
 
-        if not args.skipHelicity:
-            add_qcdScaleByHelicityUnc_hist(results, df, qcdScaleByHelicity_helper, scale_axes, scale_cols, base_name=base_name)
+        #if not args.skipHelicity:
+        #    add_qcdScaleByHelicityUnc_hist(results, df, qcdScaleByHelicity_helper, scale_axes, scale_cols, base_name=base_name)
 
         # TODO: Should have consistent order here with the scetlib correction function
         add_massweights_hist(results, df, axes, cols, proc=dataset_name, base_name=base_name)

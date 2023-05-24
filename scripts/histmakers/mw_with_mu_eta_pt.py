@@ -43,6 +43,7 @@ datasets = wremnants.datasets2016.getDatasets(maxFiles=args.maxFiles,
                                               nanoVersion="v8" if args.v8 else "v9", base_path=args.dataPath)
 
 era = args.era
+print('Args add helicity given ?', args.addHelicityHistos)
 
 # custom template binning
 template_neta = int(args.eta[0])
@@ -74,15 +75,17 @@ axis_hasjet_fakes = hist.axis.Boolean(name = "hasJets") # only need case with 0 
 mTStudyForFakes_axes = [axis_eta, axis_pt, axis_charge, axis_mt_fakes, axis_passIso, axis_hasjet_fakes, axis_dphi_fakes]
 
 axis_met = hist.axis.Regular(200, 0., 200., name = "met", underflow=False, overflow=True)
-
+#list(range(0,50,5)).append(np.inf) ,
 axis_ptVgen = hist.axis.Variable(
-    list(range(0,60,10)),
+    [0., 5., 10., 15., 20., 25., 30., 35., 40., 45., 50., np.inf],
     name = "ptVgen", underflow=False
 )
+print(axis_ptVgen)
+#axis_ptVgen.append(np.inf)
 #Taken from w-z gen histomaker     
 axis_absYVgen = hist.axis.Variable(
     #[0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4., 5., np.inf], 
-    [0, 0.5, 1.5, 2.5, 5.],
+    [0, 0.25, 0.5, 0.75, 1., 1.5, 2.5, 5., np.inf],
     name = "absYVgen", underflow=False
 )
 
@@ -143,16 +146,33 @@ if not args.noRecoil:
 
 
 #graph building for Wsample with helicity weights
-def whistosbyHelicity(df, results, dataset, era):
+def whistosbyHelicity(df, results, dataset, reco_sel_GF, era):
+    print('Entered function whistobyHelicity')                
     nominal_cols = ["goodMuons_eta0", "goodMuons_pt0", "goodMuons_charge0", "passIso", "passMT", "absYVgen", "ptVgen"]
     nominal_axes = [axis_eta, axis_pt, axis_charge, axis_passIso, axis_passMT, axis_absYVgen, axis_ptVgen]
     weightsByHelicity_helper = wremnants.makehelicityWeightHelper()
     df = df.Define("helWeight_tensor", weightsByHelicity_helper, ["massVgen", "yVgen", "ptVgen", "chargeVgen", "csSineCosThetaPhi", "nominal_weight"])
-    nominalByHelicity = df.HistoBoost("nominal", nominal_axes, [*nominal_cols,"helWeight_tensor"], tensor_axes=weightsByHelicity_helper.tensor_axes)
+    df=df.Define("nominal_weight_helicity", "wrem::scalarmultiplyHelWeightTensor(nominal_weight,helWeight_tensor)")
+    axes_helicity=hist.axis.Integer(-1, 5, name="helicity", overflow=False, underflow=False)
+    nominalByHelicity = df.HistoBoost("nominal", nominal_axes, [*nominal_cols,"nominal_weight_helicity"], tensor_axes=[axes_helicity])
     results.append(nominalByHelicity)
+
+    #nominalValidation = df.HistoBoost("nominal_validation", nominal_axes, [*nominal_cols,"nominal_weight"])
+    #results.append(nominalValidation)
     ##prefire histos
     df = syst_tools_helicity.add_L1Prefire_unc_hists(results, df, muon_prefiring_helper_stat, muon_prefiring_helper_syst, nominal_axes, nominal_cols)
     df = syst_tools_helicity.add_muon_efficiency_unc_hists(results, df, muon_efficiency_helper_stat, muon_efficiency_helper_syst, nominal_axes, nominal_cols)
+    df = syst_tools_helicity.add_theory_hists(results, df, args, dataset.name, corr_helpers, qcdScaleByHelicity_helper, nominal_axes, nominal_cols, for_wmass=True)
+    if not 'massWeight_tensor' in df.GetColumnNames():
+        df=syst_tools.define_mass_weights(df, dataset.name)
+    #mass weights are needed downstream
+    df = syst_tools_helicity.add_muonscale_hist(results, df, args.muonCorrEtaBins, args.muonCorrMag, True, nominal_axes, nominal_cols)
+    if args.muonScaleVariation == 'smearingWeights':
+        nominal_cols_gen, nominal_cols_gen_smeared = muon_calibration.make_alt_reco_and_gen_hists(df, results, nominal_axes, nominal_cols, reco_sel_GF)
+        df = syst_tools_helicity.add_muonscale_smeared_hist(results, df, args.muonCorrEtaBins, args.muonCorrMag, True, nominal_axes, nominal_cols_gen_smeared)
+
+    
+
     #return results
 
 
@@ -333,7 +353,7 @@ def build_graph(df, dataset):
 
     else:  
         if isW and args.addHelicityHistos:
-            whistosbyHelicity(df, results, dataset, era=era)
+            whistosbyHelicity(df, results, dataset, reco_sel_GF, era=era)
             return results, weightsum
         results.append(df.HistoBoost("nominal_weight", [hist.axis.Regular(200, -4, 4)], ["nominal_weight"]))
         

@@ -318,7 +318,7 @@ def add_muonscale_hist(results, df, netabins, mag, isW, axes, cols, base_name="n
 
     scale_etabins_axis = hist.axis.Regular(netabins, -2.4, 2.4, name="scaleEtaSlice", underflow=False, overflow=False)
     name = Datagroups.histName(base_name, syst=f"muonScaleSyst")
-
+    
     dummyMuonScaleSyst = df.HistoBoost(name, axes, [*cols, f"muonScaleDummy{netabins}Bins{muon_eta}"], tensor_axes=[common.down_up_axis, scale_etabins_axis])
     results.append(dummyMuonScaleSyst)
 

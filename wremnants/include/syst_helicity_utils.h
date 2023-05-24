@@ -54,33 +54,57 @@ class tensorupdownvar_helper_helicity {
   tensorupdownvar_helper_helicity() {}
   value_type operator() (const pref_tensor &pf, const hel_tensor &ht) const {
     constexpr std::array<Eigen::Index, 3> broadcasthelicities = { nhelicity, 1, 1};
-    constexpr std::array<Eigen::Index, 3> broadcastpref = { 1, nhelicity,2};   
+    constexpr std::array<Eigen::Index, 3> broadcastpref = { 1, nsize,2};   
     auto shape5 = pf.reshape(broadcastpref).broadcast(broadcasthelicities);
     auto shape4 = ht.reshape(broadcasthelicities).broadcast(broadcastpref);
     return shape4*shape5;
   }
 }; 
 
+
+//Expand rank two tensor by helicity
+ template <std::size_t dim1, std::size_t dim2, std::size_t nhelicity>
+class tensorRank2_helper_helicity {
+ public:
+  using value_type = Eigen::TensorFixedSize<double, Eigen::Sizes<nhelicity, dim1, dim2>>;
+  using pref_tensor = Eigen::TensorFixedSize<double, Eigen::Sizes<dim1, dim2>>;
+  using hel_tensor = Eigen::TensorFixedSize<double, Eigen::Sizes<nhelicity>>;
+  tensorRank2_helper_helicity() {}
+  value_type operator() (const pref_tensor &pf, const hel_tensor &ht) const {
+    constexpr std::array<Eigen::Index, 3> broadcasthelicities = { nhelicity, 1, 1};
+    constexpr std::array<Eigen::Index, 3> broadcastpref = { 1, dim1,dim2};   
+    auto shape5 = pf.reshape(broadcastpref).broadcast(broadcasthelicities);
+    auto shape4 = ht.reshape(broadcasthelicities).broadcast(broadcastpref);
+    return shape4*shape5;
+  }
+}; 
+
+
+Eigen::TensorFixedSize<double, Eigen::Sizes<6>> scalarmultiplyHelWeightTensor(double wt, Eigen::TensorFixedSize<double, Eigen::Sizes<6>>& helTensor) {
+  return wt*helTensor;
+}
+
  template <typename T>
 class WeightByHelicityHelper : public TensorCorrectionsHelper<T> {
    using base_t = TensorCorrectionsHelper<T>;
    using tensor_t = typename T::storage_type::value_type::tensor_t;
    static constexpr auto sizes = narf::tensor_traits<tensor_t>::sizes;
-   static constexpr auto nhelicity = sizes[0];
+   //static constexpr auto nhelicity = NHELICITY;
+   static constexpr auto NHELICITY_WEIGHTS = 6;
    // TODO: Can presumably get the double type from the template param
-   typedef Eigen::TensorFixedSize<double, Eigen::Sizes<NHELICITY>> helweight_tensor_t;
+   typedef Eigen::TensorFixedSize<double, Eigen::Sizes<NHELICITY_WEIGHTS>> helweight_tensor_t;
    
  public:
    using base_t::base_t;
    
    helweight_tensor_t operator() (double mV, double yV, double ptV, int qV, const CSVars &csvars, double nominal_weight) {
-     static_assert(nhelicity == NHELICITY);
+     //static_assert(nhelicity == NHELICITY);
      const auto moments = csAngularFactors(csvars);
      const auto coeffs = base_t::get_tensor(mV, yV, ptV, qV);
      helweight_tensor_t helWeights;
      double sum = 0.;
-     for(unsigned int i = 0; i < 9;i++) {
-       helWeights(i) = coeffs(i) * moments(i);
+     for(unsigned int i = 0; i < NHELICITY;i++) {
+       if(i<6) helWeights(i) = coeffs(i) * moments(i);
        sum += coeffs(i) * moments(i);
      }       
      //const double gc = 3./(16. * TMath::Pi());
