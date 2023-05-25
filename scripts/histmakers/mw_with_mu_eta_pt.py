@@ -171,10 +171,6 @@ def whistosbyHelicity(df, results, dataset, reco_sel_GF, era):
         nominal_cols_gen, nominal_cols_gen_smeared = muon_calibration.make_alt_reco_and_gen_hists(df, results, nominal_axes, nominal_cols, reco_sel_GF)
         df = syst_tools_helicity.add_muonscale_smeared_hist(results, df, args.muonCorrEtaBins, args.muonCorrMag, True, nominal_axes, nominal_cols_gen_smeared)
 
-    
-
-    #return results
-
 
 def build_graph(df, dataset):
     logger.info(f"build graph for dataset: {dataset.name}")
