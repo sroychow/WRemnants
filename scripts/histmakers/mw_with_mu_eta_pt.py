@@ -25,6 +25,7 @@ parser.add_argument("--vqtTestReal", action="store_true", help="Test of isolatio
 parser.add_argument("--vqtTestIncludeTrigger", action="store_true", help="Test of isolation SFs dependence on V q_T projection. Including trigger")
 parser.add_argument("--noGenMatchMC", action='store_true', help="Don't use gen match filter for prompt muons with MC samples (note: QCD MC never has it anyway)")
 parser.add_argument("--dphiMuonMetCut", type=float, help="Threshold to cut |deltaPhi| > thr*np.pi between muon and met", default=0.25)
+parser.add_argument("--datayear", type=int, help="Data year", default=2016)
 args = parser.parse_args()
 
 if args.vqtTestIntegrated:
@@ -34,7 +35,11 @@ else:
 
 logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
 
-datasets = wremnants.datasets2016.getDatasets(maxFiles=args.maxFiles,
+datasetsTouse=wremnants.datasets2016
+if args.datayear == 2017:
+    datasetsTouse = wremnants.datasets2017
+
+datasets = datasetsTouse.getDatasets(maxFiles=args.maxFiles,
                                               filt=args.filterProcs,
                                               excl=args.excludeProcs, 
                                               nanoVersion="v8" if args.v8 else "v9", base_path=args.dataPath)
@@ -166,8 +171,8 @@ def build_graph(df, dataset):
     if unfold:
         df = unfolding_tools.define_gen_level(df, args.genLevel, dataset.name, mode="wmass")
         unfolding_tools.add_xnorm_histograms(results, df, args, dataset.name, corr_helpers, qcdScaleByHelicity_helper, unfolding_axes, unfolding_cols)
-
-    df = df.Filter("HLT_IsoTkMu24 || HLT_IsoMu24")
+    hlt="HLT_IsoTkMu24 || HLT_IsoMu24" if args.datayear == 2016 else "HLT_IsoMu24"
+    df = df.Filter(hlt)
     #df = df.Filter("event % 2 == 1") # test with odd/even events
 
     df = muon_calibration.define_corrected_muons(df, cvh_helper, jpsi_helper, args, dataset, smearing_helper, bias_helper)
@@ -587,7 +592,8 @@ def build_graph(df, dataset):
     return results, weightsum
 
 resultdict = narf.build_and_run(datasets, build_graph)
-if not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeights':
+hasbothCharges = 'WplusmunuPostVFP' in resultdict.keys() and 'WminusmunuPostVFP' in resultdict.keys()
+if not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeights' and hasbothCharges:
     muon_calibration.transport_smearing_weights_to_reco(resultdict, nonClosureScheme = args.nonClosureScheme)
     muon_calibration.muon_scale_variation_from_manual_shift(resultdict)
 
