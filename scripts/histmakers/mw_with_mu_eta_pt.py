@@ -38,6 +38,8 @@ logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
 datasetsTouse=wremnants.datasets2016
 if args.datayear == 2017:
     datasetsTouse = wremnants.datasets2017
+elif args.datayear == 2018:
+    datasetsTouse = wremnants.datasets2018
 
 datasets = datasetsTouse.getDatasets(maxFiles=args.maxFiles,
                                               filt=args.filterProcs,
@@ -592,8 +594,8 @@ def build_graph(df, dataset):
     return results, weightsum
 
 resultdict = narf.build_and_run(datasets, build_graph)
-hasbothCharges = 'WplusmunuPostVFP' in resultdict.keys() and 'WminusmunuPostVFP' in resultdict.keys()
-if not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeights' and hasbothCharges:
+hasallSignal = 'WplusmunuPostVFP' in resultdict.keys() and 'WminusmunuPostVFP' in resultdict.keys() and 'ZmumuPostVFP' in resultdict.keys()
+if not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeights' and hasallSignal:
     muon_calibration.transport_smearing_weights_to_reco(resultdict, nonClosureScheme = args.nonClosureScheme)
     muon_calibration.muon_scale_variation_from_manual_shift(resultdict)
 

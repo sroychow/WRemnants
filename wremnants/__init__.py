@@ -11,7 +11,7 @@ narf.clingutils.Declare('#include "utils.h"')
 narf.clingutils.Declare('#include "csVariables.h"')
 narf.clingutils.Declare('#include "EtaPtCorrelatedEfficiency.h"')
 
-from .datasets import datasets2016, datasets2017
+from .datasets import datasets2016, datasets2017, datasets2018
 from .datasets import datasetsLowPU
 
 from .muon_prefiring import make_muon_prefiring_helpers

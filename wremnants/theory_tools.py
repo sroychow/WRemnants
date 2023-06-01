@@ -259,7 +259,7 @@ def define_theory_weights_and_corrs(df, dataset_name, helpers, args):
 
 def build_weight_expr(df, exclude_weights=[]):
     valid_cols = df.GetColumnNames()
-    weights = ["weight", "central_pdf_weight", "theory_corr_weight", "exp_weight"]
+    weights = ["weight"]#, "central_pdf_weight", "theory_corr_weight", "exp_weight"]
     if weights[0] not in valid_cols:
         raise ValueError(f"The weight '{weights[0]}' must be defined in the histmaker!")
     found_weights = []

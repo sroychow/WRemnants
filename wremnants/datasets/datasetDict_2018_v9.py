@@ -7,26 +7,27 @@ xsec_Wpmunu = 11765.9
 xsec_Wmmunu = 8703.87
 Z_TAU_TO_LEP_RATIO = (1.-(1. - BR_TAUToMU - BR_TAUToE)**2)
 
-dataDictV9_2017 = {
+dataDictV9_2018 = {
     'Wplusmunu' : { 
                       'filepaths' : 
-                      ["{BASE_PATH}/WplusJetsToMuNu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MC2017_{NANO_PROD_TAG}/*/*/*.root"],
+                      ["{BASE_PATH}/WplusJetsToMuNu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MC2018_{NANO_PROD_TAG}/*/*/*.root"],
                       'xsec' : xsec_Wpmunu,
                       'group': "Wmunu",
     },
     'Wminusmunu' : { 
                       'filepaths' : 
-                      ["{BASE_PATH}/WminusJetsToMuNu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MC2017_{NANO_PROD_TAG}/*/*/*.root"],
+                      ["{BASE_PATH}/WminusJetsToMuNu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MC2018_{NANO_PROD_TAG}/*/*/*.root"],
                       'xsec' : xsec_Wmmunu,
                       'group': "Wmunu",
     },
     'Zmumu' : { 
                    'filepaths' :
-                    ["{BASE_PATH}/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MC2017_{NANO_PROD_TAG}/*/*/*.root"],
+                    ["{BASE_PATH}/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MC2018_{NANO_PROD_TAG}/*/*/*.root"],
                    'xsec' : xsec_Zmm,
                    'group': "Zmumu",
     },
 }
+
 '''
     'data' : { 
                       'filepaths' : ["{BASE_PATH}/SingleMuon/NanoV9Run2016FData_{NANO_PROD_TAG}/*/*/*.root",
