@@ -114,7 +114,7 @@ def make_muon_efficiency_helpers_smooth(filename = data_dir + "/muonSF/allSmooth
             chargeTag = charge_tag if eff_type in chargeDependentSteps else "both"
             hist_name = f"SF_{nameTag}_{eratag}_{eff_type}_{chargeTag}"
             ## temporary patch for some missing SF histograms relevant only for dilepton (no warning needed otherwise)
-            if isoDefinition != "iso04vtxAgn" or era == "2018":
+            if isoDefinition != "iso04vtxAgn" or era != "2016PostVFP":
                 if eff_type == "antitrigger":
                     hist_name = hist_name.replace("antitrigger", "trigger")
                     if templateAnalysisArg == "wrem::AnalysisType::Dilepton":
@@ -347,7 +347,7 @@ def make_muon_efficiency_helpers_smooth(filename = data_dir + "/muonSF/allSmooth
 
                     # temporary patch for some missing SF histograms in 2D (for the 3D case we have everything)
                     # only relevant for dilepton (no warning needed otherwise)
-                    if isoDefinition != "iso04vtxAgn" or era=="2018":
+                    if isoDefinition != "iso04vtxAgn" or era!="2016PostVFP":
                         if eff_type == "antitrigger":
                             hist_name = hist_name.replace("antitrigger", "trigger")
                             if templateAnalysisArg == "wrem::AnalysisType::Dilepton":

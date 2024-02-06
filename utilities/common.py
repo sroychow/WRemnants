@@ -239,8 +239,6 @@ def common_parser(for_reco_highPU=False):
                     raise NotImplementedError(f"For Era {commonargs.era} Isolation Definition {commonargs.isolationDefinition} is not supported")
                 else:
                     sfFile = "allSmooth_2018_vtxAgnIso.root"
-            else:
-                raise NotImplementedError(f"Era {commonargs.era} is not yet supposrted")
 
         sfFile = f"{data_dir}/muonSF/{sfFile}"
     else:
