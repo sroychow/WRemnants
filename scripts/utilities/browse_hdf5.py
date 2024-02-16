@@ -8,6 +8,7 @@ import lz4.frame
 import pickle
 import hist
 from utilities import boostHistHelpers as hh, logging
+from utilities.io_tools.input_tools import load_results_h5py
 #import wremnants
 import hdf5plugin
 import h5py
@@ -54,7 +55,7 @@ if __name__ == "__main__":
            print("="*30)
            print("GOING TO PRINT HISTOGRAMS")
            print("="*30)
-           #print(results.keys())
+           print(results.keys())
            for p in results.keys():
                 if p == "meta_info":
                      continue
@@ -76,3 +77,4 @@ if __name__ == "__main__":
                                if args.axis and n.name != args.axis:
                                     continue
                                print(f"{space}{space} {n}")
+                               print(histObj)

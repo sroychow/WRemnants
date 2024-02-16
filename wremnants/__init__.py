@@ -12,6 +12,7 @@ narf.clingutils.Declare('#include "csVariables.h"')
 narf.clingutils.Declare('#include "EtaPtCorrelatedEfficiency.h"')
 narf.clingutils.Declare('#include "theoryTools.h"')
 narf.clingutils.Declare('#include "syst_helicity_utils_polvar.h"')
+narf.clingutils.Declare('#include "muonCalib.h"')
 
 from .muon_prefiring import make_muon_prefiring_helpers
 from .muon_efficiencies_smooth import make_muon_efficiency_helpers_smooth
