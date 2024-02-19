@@ -85,7 +85,7 @@ def make_muon_efficiency_helpers_smooth(filename = data_dir + "/muonSF/allSmooth
 
     dict_SF3D = None
     if len(eff_types_3D):
-        if era == "2018" or "2017":
+        if era == "2018" or era == "2017":
             raise NotImplementedError(f"3D Efficiency SFs not implemented for {era}")
         if isoDefinition == "iso04vtxAgn":
             fileSF3D = f"{data_dir}/muonSF/smoothSF3D_uTm30to100_vtxAgnIso.pkl.lz4"
