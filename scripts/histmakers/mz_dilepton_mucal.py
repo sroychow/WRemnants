@@ -36,7 +36,7 @@ era = args.era
 
 ############NOTE
 ####For mow this is hardcoded to run on Zmumu only
-filterProcess=['Zmumu']
+filterProcess=['Zmumu', 'data']
 datasets = getDatasets(maxFiles=args.maxFiles,
                        filt=filterProcess,
                        excl=args.excludeProcs, 
@@ -51,6 +51,7 @@ mass_max = 120
 
 ewMassBins = theory_tools.make_ew_binning(mass = 91.1535, width = 2.4932, initialStep=0.010)
 dilepton_ptV_binning = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 20, 23, 27, 32, 40, 54, 100] if not args.finePtBinning else range(60)
+massDiffBins=[ -5.0 + i * 10.0/16 for i in range(0, 17)]
 # available axes for dilepton validation plots
 all_axes = {
     "mll": hist.axis.Regular(60, 60., 120., name = "mll", overflow=not args.excludeFlow, underflow=not args.excludeFlow),
@@ -70,6 +71,7 @@ all_axes = {
     "phiStarll": hist.axis.Regular(20, -math.pi, math.pi, circular = True, name = "phiStarll"),
     #"charge": hist.axis.Regular(2, -2., 2., underflow=False, overflow=False, name = "charge") # categorical axes in python bindings always have an overflow bin, so use a regular
     "massVgen": hist.axis.Variable(ewMassBins, name = "massVgen", overflow=not args.excludeFlow, underflow=not args.excludeFlow),
+    "mllDiff": hist.axis.Variable(massDiffBins, name = "mllDiff", overflow=not args.excludeFlow, underflow=not args.excludeFlow),
     "ewMll": hist.axis.Variable(ewMassBins, name = "ewMll", overflow=not args.excludeFlow, underflow=not args.excludeFlow),
     "ewMlly": hist.axis.Variable(ewMassBins, name = "ewMlly", overflow=not args.excludeFlow, underflow=not args.excludeFlow),
     "ewLogDeltaM": hist.axis.Regular(100, -10, 4, name = "ewLogDeltaM", overflow=not args.excludeFlow, underflow=not args.excludeFlow),
@@ -144,61 +146,82 @@ def build_graph(df, dataset):
     df = muon_selections.select_veto_muons(df, nMuons=2)
     df = muon_selections.select_good_muons(df, args.pt[1], args.pt[2], dataset.group, nMuons=2, use_isolation=True, isoDefinition=args.isolationDefinition, condition=">=")
 
-    df = df.Define("rGaus4", "wrem::gausInSlot(rdfslot_, event)")
-    #for debugging Random generation
-    #df = df.Define("ff", "wrem::plotInSlot(rdfslot_, event, rGaus4)")
-    #df = df.Filter('ff')
-    
-    df = df.Define("pairs", "wrem::muPair(rdfslot_,Muon_correctedPt, Muon_correctedCharge, Muon_correctedEta, Muon_correctedPhi, Muon_dxy, Muon_dz, GenPart_status, GenPart_pdgId, GenPart_genPartIdxMother, GenPart_pt, GenPart_eta, GenPart_phi, rGaus4)")
-    df = df.Define("mll_reco","return get<2>(pairs);");
-    df = df.Filter("mll_reco>1.0");
-
-
-    df = df.Define("posTrackPt","return get<3>(pairs);")\
-           .Define("negTrackPt","return get<4>(pairs);")\
-           .Define("mll_diff_reco","return get<5>(pairs);")\
-           .Define("jacobian_weight_mll_diff_reco","return get<5>(pairs)*std::copysign(1.0, genWeight);")\
-           .Define("mll_smear","return get<6>(pairs);")\
-           .Define("posPtSmear","return get<7>(pairs);")\
-           .Define("negPtSmear","return get<8>(pairs);")\
-           .Define("mll_diff_smear","return get<9>(pairs);")\
-           .Define("jacobian_weight_mll_diff_smear", "return get<9>(pairs)*std::copysign(1.0, genWeight);")\
-           .Define("mll_gen","return get<10>(pairs);")\
-           .Define("posPtGen","return get<11>(pairs);")\
-           .Define("negPtGen","return get<12>(pairs);")\
-           .Define("jacobian_weight_mll_diff_squared_smear","return get<13>(pairs)*std::copysign(1.0, genWeight);")\
-           .Define("smear_beta_weight","return get<14>(pairs)*std::copysign(1.0, genWeight);")\
-           .Define("posPtSmearBetaVal","return get<15>(pairs);")\
-           .Define("negPtSmearBetaVal","return get<16>(pairs);")\
-           .Define("jacobian_weight_mll_diff_squared_reco","return get<17>(pairs)*std::copysign(1.0, genWeight);")\
-           .Define("posTrackEta","return Muon_correctedEta[get<0>(pairs)];")\
-           .Define("negTrackEta","return Muon_correctedEta[get<1>(pairs)];")\
-
-
-    #if dataset.is_data:
-    #    #
-    #    results.append(df.HistoBoost("mll", [all_axes['mll']], ['mll_reco']))
-    #else:
-    df = df.Define("weight_pu", pileup_helper, ["Pileup_nTrueInt"])
-    df = df.Define("weight_vtx", vertex_helper, ["GenVtx_z", "Pileup_nTrueInt"])
-    df = df.Define("weight_newMuonPrefiringSF", muon_prefiring_helper, ["Muon_correctedEta", "Muon_correctedPt", "Muon_correctedPhi", "Muon_correctedCharge", "Muon_looseId"])
-    
-    if era == "2016PostVFP":
-        weight_expr = "weight_pu*weight_newMuonPrefiringSF*L1PreFiringWeight_ECAL_Nom"
+    if dataset.is_data:
+        df = df.Define("pairs", "wrem::muPair(rdfslot_,Muon_correctedPt, Muon_correctedCharge, Muon_correctedEta, Muon_correctedPhi, Muon_dxy, Muon_dz)")
+        df = df.Define("mll","return get<2>(pairs);");
+        df = df.Filter("mll>1.0");
+        df = df.Define("ptPlus","return get<3>(pairs);")\
+               .Define("ptMinus","return get<4>(pairs);")\
+               .Define("etaPlus","return Muon_correctedEta[get<0>(pairs)];")\
+               .Define("etaMinus","return Muon_correctedEta[get<1>(pairs)];")\
+               
+        results.append(df.HistoBoost("mll", [all_axes['mll']], ['mll']))
+        cols5D = ['etaPlus', 'ptPlus', 'etaMinus', 'ptMinus', 'mll']
+        axes5D=[all_axes[xx] for xx in cols5D]
+        logger.debug(f"5D axes defined for data: {axes5D}")
+        results.append(df.HistoBoost("mll_5D", axes5D, [*cols5D]))
+                
     else:
-        weight_expr = "weight_pu*L1PreFiringWeight_Muon_Nom*L1PreFiringWeight_ECAL_Nom"
+        df = df.Define("rGaus4", "wrem::gausInSlot(rdfslot_, event)")
+        #for debugging Random generation
+        #df = df.Define("ff", "wrem::plotInSlot(rdfslot_, event, rGaus4)")
+        #df = df.Filter('ff')
         
-        
-    if not args.noVertexWeight:
-        weight_expr += "*weight_vtx"            
-            
-    logger.debug(f"Experimental weight defined: {weight_expr}")
-    df = df.Define("exp_weight", weight_expr)
-    df = theory_tools.define_theory_weights_and_corrs(df, dataset.name, corr_helpers, args)
-    results.append(df.HistoBoost("weight", [hist.axis.Regular(100, -2, 2)], ["nominal_weight"], storage=hist.storage.Double()))
-    results.append(df.HistoBoost("mll", [all_axes['mll']], ['mll_reco', 'nominal_weight']))
+        df = df.Define("pairs", "wrem::muPair(rdfslot_,Muon_correctedPt, Muon_correctedCharge, Muon_correctedEta, Muon_correctedPhi, Muon_dxy, Muon_dz, GenPart_status, GenPart_pdgId, GenPart_genPartIdxMother, GenPart_pt, GenPart_eta, GenPart_phi, rGaus4)")
+        df = df.Define("mll","return get<2>(pairs);");
+        df = df.Filter("mll>1.0");
 
+
+        df = df.Define("ptPlus","return get<3>(pairs);")\
+               .Define("ptMinus","return get<4>(pairs);")\
+               .Define("mllDiff","return get<5>(pairs);")\
+               .Define("jacobian_weight_mll_diff_reco","return get<5>(pairs)*std::copysign(1.0, genWeight);")\
+               .Define("mll_smear","return get<6>(pairs);")\
+               .Define("posPtSmear","return get<7>(pairs);")\
+               .Define("negPtSmear","return get<8>(pairs);")\
+               .Define("mll_diff_smear","return get<9>(pairs);")\
+               .Define("jacobian_weight_mll_diff_smear", "return get<9>(pairs)*std::copysign(1.0, genWeight);")\
+               .Define("mll_gen","return get<10>(pairs);")\
+               .Define("posPtGen","return get<11>(pairs);")\
+               .Define("negPtGen","return get<12>(pairs);")\
+               .Define("jacobian_weight_mll_diff_squared_smear","return get<13>(pairs)*std::copysign(1.0, genWeight);")\
+               .Define("smear_beta_weight","return get<14>(pairs)*std::copysign(1.0, genWeight);")\
+               .Define("posPtSmearBetaVal","return get<15>(pairs);")\
+               .Define("negPtSmearBetaVal","return get<16>(pairs);")\
+               .Define("jacobian_weight_mll_diff_squared_reco","return get<17>(pairs)*std::copysign(1.0, genWeight);")\
+               .Define("etaPlus","return Muon_correctedEta[get<0>(pairs)];")\
+               .Define("etaMinus","return Muon_correctedEta[get<1>(pairs)];")\
+
+
+        df = df.Define("weight_pu", pileup_helper, ["Pileup_nTrueInt"])
+        df = df.Define("weight_vtx", vertex_helper, ["GenVtx_z", "Pileup_nTrueInt"])
+        df = df.Define("weight_newMuonPrefiringSF", muon_prefiring_helper, ["Muon_correctedEta", "Muon_correctedPt", "Muon_correctedPhi", "Muon_correctedCharge", "Muon_looseId"])
     
+        if era == "2016PostVFP":
+            weight_expr = "weight_pu*weight_newMuonPrefiringSF*L1PreFiringWeight_ECAL_Nom"
+        else:
+            weight_expr = "weight_pu*L1PreFiringWeight_Muon_Nom*L1PreFiringWeight_ECAL_Nom"
+        
+        
+        if not args.noVertexWeight:
+            weight_expr += "*weight_vtx"            
+            
+        logger.debug(f"Experimental weight defined: {weight_expr}")
+        df = df.Define("exp_weight", weight_expr)
+        df = theory_tools.define_theory_weights_and_corrs(df, dataset.name, corr_helpers, args)
+        results.append(df.HistoBoost("weight", [hist.axis.Regular(100, -2, 2)], ["nominal_weight"], storage=hist.storage.Double()))
+
+        #common to both data and MC
+        results.append(df.HistoBoost("mll", [all_axes['mll']], ['mll', 'nominal_weight']))
+        cols5D = ['etaPlus', 'ptPlus', 'etaMinus', 'ptMinus', 'mll']
+        axes5D=[all_axes[xx] for xx in cols5D]
+        logger.debug(f"5D axes defined for data: {axes5D}")
+        results.append(df.HistoBoost("mll_5D", axes5D, [*cols5D, 'nominal_weight']))
+        #just change the 5th col
+        cols5D[4]='mllDiff'
+        axes5D[4]=all_axes[cols5D[4]]
+        results.append(df.HistoBoost("mll_diff_5D", axes5D, [*cols5D, 'nominal_weight']))
+        
     return results, weightsum
 
 logger.debug(f"Datasets are {[d.name for d in datasets]}")
