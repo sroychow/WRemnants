@@ -149,7 +149,7 @@ def build_graph(df, dataset):
     if dataset.is_data:
         df = df.Define("pairs", "wrem::muPair(rdfslot_,Muon_correctedPt, Muon_correctedCharge, Muon_correctedEta, Muon_correctedPhi, Muon_dxy, Muon_dz)")
         df = df.Define("mll","return get<2>(pairs);");
-        df = df.Filter("mll>1.0");
+        df = df.Filter("mll>1.0", "at-least 1 mll pair");
         df = df.Define("ptPlus","return get<3>(pairs);")\
                .Define("ptMinus","return get<4>(pairs);")\
                .Define("etaPlus","return Muon_correctedEta[get<0>(pairs)];")\
@@ -169,7 +169,7 @@ def build_graph(df, dataset):
         
         df = df.Define("pairs", "wrem::muPair(rdfslot_,Muon_correctedPt, Muon_correctedCharge, Muon_correctedEta, Muon_correctedPhi, Muon_dxy, Muon_dz, GenPart_status, GenPart_pdgId, GenPart_genPartIdxMother, GenPart_pt, GenPart_eta, GenPart_phi, rGaus4)")
         df = df.Define("mll","return get<2>(pairs);");
-        df = df.Filter("mll>1.0");
+        df = df.Filter("mll>1.0", "at-least 1 mll pair");
 
 
         df = df.Define("ptPlus","return get<3>(pairs);")\
@@ -218,11 +218,11 @@ def build_graph(df, dataset):
         logger.debug(f"5D axes defined for data: {axes5D}")
         results.append(df.HistoBoost("mll_5D", axes5D, [*cols5D, 'nominal_weight']))
         #just change the 5th col
-        cols5D[4]='mllDiff'
-        axes5D[4]=all_axes[cols5D[4]]
+        cols5D=['etaPlus', 'ptPlus', 'etaMinus', 'ptMinus', 'mllDiff']
+        axes5D=[all_axes[xx] for xx in cols5D]
         results.append(df.HistoBoost("mll_diff_5D", axes5D, [*cols5D, 'nominal_weight']))
         
-    return results, weightsum
+    return results, weightsum, df.Report()
 
 logger.debug(f"Datasets are {[d.name for d in datasets]}")
 resultdict = narf.build_and_run(datasets, build_graph)
